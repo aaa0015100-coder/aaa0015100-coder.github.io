@@ -8,7 +8,16 @@ const fails = [];
 
 if (/<(script|link|img|iframe)[^>]+(src|href)\s*=\s*["']https?:/i.test(html)) fails.push("有外部載入");
 if (/fonts\.googleapis|@import/i.test(html)) fails.push("有外部字型");
-if (/localStorage|sessionStorage|document\.cookie|indexedDB/.test(html)) fails.push("使用瀏覽器儲存");
+if (/sessionStorage|document\.cookie|indexedDB/.test(html)) fails.push("使用瀏覽器儲存");
+// 入口頁例外：localStorage 只能用 ORDER_KEY，且每次存取都在 try 裡
+const lsCalls = [...html.matchAll(/localStorage\.(\w+)\(([^,)]*)/g)];
+if (!lsCalls.length) fails.push("找不到順序儲存");
+for (const m of lsCalls) if (m[2].trim() !== "ORDER_KEY") fails.push("localStorage 用了 ORDER_KEY 以外的鍵：" + m[0]);
+for (const fn of ["loadOrder", "saveOrder"]) {
+  const body = (html.match(new RegExp("function " + fn + "\\([^)]*\\)\\{([\\s\\S]*?)\\n\\}")) || [])[1] || "";
+  if (!/^\s*try\s*\{/.test(body)) fails.push(fn + " 沒有包 try");
+}
+if ((html.match(/localStorage/g) || []).length !== lsCalls.length) fails.push("localStorage 出現在預期以外的地方");
 if (/<meta[^>]+name=["']claude:/i.test(html)) fails.push("有 claude: meta");
 if (!/^<!doctype html>/i.test(html) || !/<html lang="zh-Hant">/.test(html) || !/viewport-fit=cover/.test(html)) fails.push("外層缺 doctype／lang／viewport");
 
@@ -23,8 +32,18 @@ if (dup.length) fails.push("重複 id：" + dup.join(","));
 
 const js = html.match(/<script>([\s\S]*)<\/script>/)[1];
 const ctx = {}; vm.createContext(ctx);
-vm.runInContext(js + "\n;this.__api={APPS,parseMeta,daysSince,card};", ctx);
+vm.runInContext(js + "\n;this.__api={APPS,parseMeta,daysSince,card,mergeOrder,moveId,DEFAULT_ORDER};", ctx);
 const A = ctx.__api;
+// 順序邏輯
+const D = A.DEFAULT_ORDER.join();
+const mo = x => A.mergeOrder(x).join();
+if (mo(null) !== D) fails.push("mergeOrder(null)");
+if (mo("abc") !== D) fails.push("mergeOrder 非陣列");
+if (mo(["oncall-helper"]) !== "oncall-helper,pca-helper,abx-helper") fails.push("mergeOrder 新 app 接在最後");
+if (mo(["x-old", "abx-helper", "abx-helper"]) !== "abx-helper,pca-helper,oncall-helper") fails.push("mergeOrder 去除未知與重複");
+if (A.moveId(A.DEFAULT_ORDER, "pca-helper", -1).join() !== D) fails.push("moveId 頂端上移應不變");
+if (A.moveId(A.DEFAULT_ORDER, "pca-helper", 1).join() !== "abx-helper,pca-helper,oncall-helper") fails.push("moveId 下移");
+if (A.moveId(A.DEFAULT_ORDER, "oncall-helper", 1).join() !== D) fails.push("moveId 底端下移應不變");
 const t = A.parseMeta('const APP_VERSION = "1.7";\nconst CHECKED = "2026-10-18";');
 if (t.v !== "1.7" || t.d !== "2026-10-18") fails.push("parseMeta pca 格式失敗");
 const u = A.parseMeta('const VERIFIED = "2026-10-25";\nconst VERSION = "v0.15";');

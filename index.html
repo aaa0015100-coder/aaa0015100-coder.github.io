@@ -37,7 +37,7 @@ button{font:inherit;color:inherit}
 .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px;margin-bottom:12px}
 .hbrand h1{font-size:1.45rem;font-weight:700;letter-spacing:.01em}
 .hbrand .sub{color:var(--muted);font-size:.85rem}
-.hr{display:flex;align-items:center;gap:10px}
+.hr{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
 .ver{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
 .btn{border:1px solid var(--accent);color:var(--accent);background:var(--surface);border-radius:8px;padding:6px 12px;font-size:.86rem;cursor:pointer;text-decoration:none;display:inline-block}
 .btn.solid{background:var(--accent);color:var(--accent-ink)}
@@ -59,6 +59,14 @@ button{font:inherit;color:inherit}
 .flag{font-size:.72rem;padding:1px 7px;border-radius:999px;line-height:1.5}
 .flag.warn{background:var(--warn-bg);color:var(--warn)}
 .flag.info{background:var(--info-bg);color:var(--info)}
+.app .hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.mv{display:flex;gap:6px;flex:0 0 auto}
+.mv button{border:1px solid var(--line);background:var(--surface2);border-radius:8px;min-width:40px;height:36px;font-size:1rem;cursor:pointer;line-height:1}
+.mv button:disabled{opacity:.35;cursor:not-allowed}
+.editing .app{border-color:var(--accent);border-style:dashed}
+.ebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--accent-weak);border-radius:var(--r);padding:8px 12px;font-size:.86rem;margin-bottom:12px}
+.ebar[hidden]{display:none}
+.ebar .sp{flex:1 1 auto}
 .note{font-size:.84rem;color:var(--muted);margin-top:16px}
 .foot{font-size:.8rem;color:var(--muted);margin-top:24px;border-top:1px solid var(--line);padding-top:10px}
 .foot .ver{display:inline}
@@ -69,9 +77,10 @@ button{font:inherit;color:inherit}
 <div class="wrap">
   <header class="top">
     <div class="hbrand"><h1>臨床決策參考</h1><div class="sub">各工具的入口；版本與查證日期即時讀取自各工具</div></div>
-    <div class="hr"><span class="ver" id="ver"></span><button type="button" class="btn sm" id="theme" aria-label="切換主題">主題：自動</button></div>
+    <div class="hr"><span class="ver" id="ver"></span><button type="button" class="btn sm" id="edit" aria-pressed="false">調整順序</button><button type="button" class="btn sm" id="theme" aria-label="切換主題">主題：自動</button></div>
   </header>
   <div class="disc"><b>僅供臨床參考。</b>最終決策以院內規範、最新指引原文與主治醫師意見為準。各工具皆不儲存病人資料。</div>
+  <div class="ebar" id="ebar" hidden><span class="sp">用 ↑ ↓ 調整順序，會記在這台裝置的瀏覽器。</span><button type="button" class="btn sm" id="reset">恢復預設</button><button type="button" class="btn sm solid" id="done">完成</button></div>
   <main class="apps" id="apps"></main>
   <p class="note" id="stat" role="status"></p>
   <footer class="foot"><span class="ver" id="ver2"></span>　各工具內「來源」頁列有完整出處與版本。</footer>
@@ -79,7 +88,7 @@ button{font:inherit;color:inherit}
 
 <script>
 "use strict";
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1";
 const UPDATED = "2026-10-25";
 /* 查證日期距今超過此天數時標示（每季檢查一次） */
 const STALE_DAYS = 120;
@@ -108,15 +117,45 @@ function daysSince(iso, now){
 }
 function appUrl(a){ return "/" + a.id + "/"; }
 
-function card(a, m){
+/* 順序：每個人各自調整，存在自己的瀏覽器（00 第六節第 2 點的入口頁例外：只存 app id 陣列，不含任何病人資料） */
+const ORDER_KEY = "hub-order";
+const DEFAULT_ORDER = APPS.map(a => a.id);
+/* 存過的順序只保留現有 app；之後新增的 app 接在最後 */
+function mergeOrder(saved){
+  const ids = Array.isArray(saved) ? saved.filter((x, i) => DEFAULT_ORDER.includes(x) && saved.indexOf(x) === i) : [];
+  return ids.concat(DEFAULT_ORDER.filter(x => !ids.includes(x)));
+}
+function loadOrder(){
+  try { return mergeOrder(JSON.parse(localStorage.getItem(ORDER_KEY) || "null")); }
+  catch(e){ return DEFAULT_ORDER.slice(); }
+}
+function saveOrder(o){
+  try {
+    if (o.join() === DEFAULT_ORDER.join()) localStorage.removeItem(ORDER_KEY);
+    else localStorage.setItem(ORDER_KEY, JSON.stringify(o));
+  } catch(e){ /* 無法儲存（私密模式等）：這次有效，重新整理回預設 */ }
+}
+function moveId(o, id, d){
+  const i = o.indexOf(id), j = i + d;
+  if (i < 0 || j < 0 || j >= o.length) return o;
+  const n = o.slice(); [n[i], n[j]] = [n[j], n[i]]; return n;
+}
+let ORDER = DEFAULT_ORDER.slice();
+let EDIT = false;
+
+function card(a, m, pos, total){
   const v = m && m.v ? "v" + m.v : "—";
   const d = m && m.d ? m.d : "—";
   let flag = "";
   if (m === null) flag = "";                                   /* 讀取中 */
   else if (!m.v && !m.d) flag = `<span class="flag info">讀不到版本</span>`;
   else if (m.d) { const n = daysSince(m.d, Date.now()); if (n !== null && n > STALE_DAYS) flag = `<span class="flag warn">已 ${n} 天未查證</span>`; }
+  const mv = EDIT ? `<div class="mv">
+      <button type="button" data-mv="-1" data-id="${a.id}" aria-label="上移 ${esc(a.name)}"${pos === 0 ? " disabled" : ""}>↑</button>
+      <button type="button" data-mv="1" data-id="${a.id}" aria-label="下移 ${esc(a.name)}"${pos === total - 1 ? " disabled" : ""}>↓</button>
+    </div>` : "";
   return `<section class="app" data-app="${a.id}">
-    <h2>${esc(a.name)}</h2>
+    <div class="hd"><h2>${esc(a.name)}</h2>${mv}</div>
     <div class="use">${esc(a.use)}</div>
     <dl class="kv">
       <dt>版本</dt><dd data-k="v">${m === null ? "讀取中…" : v}</dd>
@@ -129,7 +168,30 @@ function card(a, m){
 
 const META = {};
 function render(){
-  document.getElementById("apps").innerHTML = APPS.map(a => card(a, a.id in META ? META[a.id] : null)).join("");
+  const list = ORDER.map(id => APPS.find(a => a.id === id));
+  const box = document.getElementById("apps");
+  const f = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset : {};
+  const keep = f.mv ? [f.id, f.mv] : null;   /* 版本讀取完成時重繪，不要讓調整中的按鈕失焦 */
+  box.innerHTML = list.map((a, i) => card(a, a.id in META ? META[a.id] : null, i, list.length)).join("");
+  box.classList.toggle("editing", EDIT);
+  if (keep) { const t = box.querySelector(`[data-id="${keep[0]}"][data-mv="${keep[1]}"]`); if (t && !t.disabled) t.focus(); }
+}
+function setEdit(on){
+  EDIT = on;
+  const b = document.getElementById("edit");
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  b.textContent = on ? "調整中…" : "調整順序";
+  document.getElementById("ebar").hidden = !on;
+  render();
+}
+function onMove(id, d){
+  ORDER = moveId(ORDER, id, d);
+  saveOrder(ORDER);
+  render();
+  /* 焦點留在同一張卡的同方向按鈕；到頂／底時改到另一個 */
+  const btns = [...document.querySelectorAll(`[data-id="${id}"]`)];
+  const t = btns.find(x => x.dataset.mv === String(d) && !x.disabled) || btns.find(x => !x.disabled);
+  if (t) t.focus();
 }
 async function load(a){
   try{
@@ -160,6 +222,14 @@ function init(){
   document.getElementById("ver").textContent = vt;
   document.getElementById("ver2").textContent = vt;
   document.getElementById("theme").addEventListener("click", () => setTheme(themeI + 1));
+  document.getElementById("edit").addEventListener("click", () => setEdit(!EDIT));
+  document.getElementById("done").addEventListener("click", () => { setEdit(false); document.getElementById("edit").focus(); });
+  document.getElementById("reset").addEventListener("click", () => { ORDER = DEFAULT_ORDER.slice(); saveOrder(ORDER); render(); });
+  document.getElementById("apps").addEventListener("click", e => {
+    const b = e.target.closest("[data-mv]");
+    if (b && !b.disabled) onMove(b.dataset.id, Number(b.dataset.mv));
+  });
+  ORDER = loadOrder();
   render();
   APPS.forEach(load);
 }
