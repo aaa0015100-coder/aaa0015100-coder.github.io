@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>臨床決策參考</title>
+<style>
+/* 臨床決策 App 樣式 v1（clinical-app-style-guide token）；入口頁只用其中一部分 */
+:root{
+  --bg:#edf1f0; --surface:#ffffff; --surface2:#f5f8f7; --ink:#13201d; --muted:#596a66; --line:#d3ddda;
+  --accent:#0a6a5f; --accent-ink:#ffffff; --accent-weak:#dbeee9;
+  --warn:#8f5400; --warn-bg:#fcefd8; --danger:#ae2a20; --danger-bg:#fae4e1;
+  --ok:#1d7344; --ok-bg:#def2e6; --info:#2a5a86; --info-bg:#e3edf7;
+  --f-body:"IBM Plex Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono","Noto Sans TC",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1514; --surface:#151f1d; --surface2:#1a2624; --ink:#e1ebe8; --muted:#94a6a1; --line:#2a3a37;
+  --accent:#4dc0ae; --accent-ink:#04201b; --accent-weak:#163933;
+  --warn:#f2b45c; --warn-bg:#382810; --danger:#ff8b80; --danger-bg:#3b1a17;
+  --ok:#6fd39a; --ok-bg:#142e1e; --info:#93bde6; --info-bg:#16283a; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --surface:#151f1d; --surface2:#1a2624; --ink:#e1ebe8; --muted:#94a6a1; --line:#2a3a37;
+  --accent:#4dc0ae; --accent-ink:#04201b; --accent-weak:#163933;
+  --warn:#f2b45c; --warn-bg:#382810; --danger:#ff8b80; --danger-bg:#3b1a17;
+  --ok:#6fd39a; --ok-bg:#142e1e; --info:#93bde6; --info-bg:#16283a; color-scheme:dark;}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
+.wrap{max-width:1260px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(18px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px))}
+h1,h2,h3{text-wrap:balance;margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px;margin-bottom:12px}
+.hbrand h1{font-size:1.45rem;font-weight:700;letter-spacing:.01em}
+.hbrand .sub{color:var(--muted);font-size:.85rem}
+.hr{display:flex;align-items:center;gap:10px}
+.ver{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+.btn{border:1px solid var(--accent);color:var(--accent);background:var(--surface);border-radius:8px;padding:6px 12px;font-size:.86rem;cursor:pointer;text-decoration:none;display:inline-block}
+.btn.solid{background:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:3px 10px;font-size:.8rem}
+.disc{background:var(--warn-bg);color:var(--warn);border-radius:var(--r);padding:9px 14px;font-size:.86rem;margin-bottom:16px}
+.disc b{font-weight:600}
+
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+@media (max-width:640px){.apps{grid-template-columns:minmax(0,1fr)}}
+.app{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.app h2{font-size:1.08rem;font-weight:700}
+.app .use{font-size:.88rem;color:var(--muted)}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 14px;font-size:.88rem;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--f-mono);font-weight:600;overflow-wrap:anywhere}
+.kv dd.gl{font-family:var(--f-body);font-weight:500}
+.app .act{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:auto}
+.app .act .btn{flex:0 0 auto}
+.flag{font-size:.72rem;padding:1px 7px;border-radius:999px;line-height:1.5}
+.flag.warn{background:var(--warn-bg);color:var(--warn)}
+.flag.info{background:var(--info-bg);color:var(--info)}
+.note{font-size:.84rem;color:var(--muted);margin-top:16px}
+.foot{font-size:.8rem;color:var(--muted);margin-top:24px;border-top:1px solid var(--line);padding-top:10px}
+.foot .ver{display:inline}
+@media (prefers-reduced-motion:no-preference){.btn{transition:background .12s,color .12s,border-color .12s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="hbrand"><h1>臨床決策參考</h1><div class="sub">各工具的入口；版本與查證日期即時讀取自各工具</div></div>
+    <div class="hr"><span class="ver" id="ver"></span><button type="button" class="btn sm" id="theme" aria-label="切換主題">主題：自動</button></div>
+  </header>
+  <div class="disc"><b>僅供臨床參考。</b>最終決策以院內規範、最新指引原文與主治醫師意見為準。各工具皆不儲存病人資料。</div>
+  <main class="apps" id="apps"></main>
+  <p class="note" id="stat" role="status"></p>
+  <footer class="foot"><span class="ver" id="ver2"></span>　各工具內「來源」頁列有完整出處與版本。</footer>
+</div>
+
+<script>
+"use strict";
+const APP_VERSION = "1.0";
+const UPDATED = "2026-10-25";
+/* 查證日期距今超過此天數時標示（每季檢查一次） */
+const STALE_DAYS = 120;
+
+/* 每個 app 一筆；新 app 上線時加一筆（見 00 第九節）。gl＝主要指引版本，每季檢查時一起核對 */
+const APPS = [
+  { id:"pca-helper",    name:"攝護腺癌臨床決策參考", use:"診斷流程、分期・風險、局部與晚期治療、監測、PHI 等計算器",
+    gl:"NCCN v1.2027・EAU 2026・AUA 2026" },
+  { id:"abx-helper",    name:"抗生素選擇助手",       use:"經驗性與標靶治療、腎肝功能劑量、口服降階、TDM、泌尿手術預防",
+    gl:"IDSA AMR 2026・SSC 2026・EAU 2026" },
+  { id:"oncall-helper", name:"病房決策輔助",         use:"值班常見主訴、ACLS、計算工具、藥物腎功能劑量",
+    gl:"AHA/ACC・ESC・KDIGO・SSC 2026 等" }
+];
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* 從 app 原始碼讀版本與查證日期（APP_VERSION／VERSION、CHECKED／VERIFIED） */
+function parseMeta(html){
+  const v = html.match(/\b(?:APP_VERSION|VERSION)\s*=\s*["']v?(\d+(?:\.\d+)+)["']/);
+  const d = html.match(/\b(?:CHECKED|VERIFIED)\s*=\s*["'](\d{4}-\d{2}-\d{2})["']/);
+  return { v: v ? v[1] : null, d: d ? d[1] : null };
+}
+function daysSince(iso, now){
+  const t = Date.parse(iso + "T00:00:00+08:00");
+  return isNaN(t) ? null : Math.floor((now - t) / 86400000);
+}
+function appUrl(a){ return "/" + a.id + "/"; }
+
+function card(a, m){
+  const v = m && m.v ? "v" + m.v : "—";
+  const d = m && m.d ? m.d : "—";
+  let flag = "";
+  if (m === null) flag = "";                                   /* 讀取中 */
+  else if (!m.v && !m.d) flag = `<span class="flag info">讀不到版本</span>`;
+  else if (m.d) { const n = daysSince(m.d, Date.now()); if (n !== null && n > STALE_DAYS) flag = `<span class="flag warn">已 ${n} 天未查證</span>`; }
+  return `<section class="app" data-app="${a.id}">
+    <h2>${esc(a.name)}</h2>
+    <div class="use">${esc(a.use)}</div>
+    <dl class="kv">
+      <dt>版本</dt><dd data-k="v">${m === null ? "讀取中…" : v}</dd>
+      <dt>查證</dt><dd data-k="d">${m === null ? "讀取中…" : d}</dd>
+      <dt>指引</dt><dd class="gl">${esc(a.gl)}</dd>
+    </dl>
+    <div class="act"><a class="btn solid" href="${appUrl(a)}">開啟</a>${flag}</div>
+  </section>`;
+}
+
+const META = {};
+function render(){
+  document.getElementById("apps").innerHTML = APPS.map(a => card(a, a.id in META ? META[a.id] : null)).join("");
+}
+async function load(a){
+  try{
+    const r = await fetch(appUrl(a), { cache:"no-cache" });
+    if (!r.ok) throw new Error(r.status);
+    META[a.id] = parseMeta(await r.text());
+  }catch(e){ META[a.id] = { v:null, d:null }; }
+  render();
+  const bad = APPS.filter(x => META[x.id] && !META[x.id].v && !META[x.id].d).length;
+  const done = APPS.filter(x => x.id in META).length;
+  document.getElementById("stat").textContent = done < APPS.length ? "" :
+    bad ? `有 ${bad} 個工具讀不到版本（離線或從檔案開啟時會如此），連結仍可使用。` : "";
+}
+
+/* 主題：自動 → 淺色 → 深色（只存在記憶體） */
+const THEMES = [["auto","自動"],["light","淺色"],["dark","深色"]];
+let themeI = 0;
+function setTheme(i){
+  themeI = i % THEMES.length;
+  const [k, label] = THEMES[themeI];
+  if (k === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", k);
+  document.getElementById("theme").textContent = "主題：" + label;
+}
+
+function init(){
+  const vt = `v${APP_VERSION}・更新 ${UPDATED}`;
+  document.getElementById("ver").textContent = vt;
+  document.getElementById("ver2").textContent = vt;
+  document.getElementById("theme").addEventListener("click", () => setTheme(themeI + 1));
+  render();
+  APPS.forEach(load);
+}
+if (typeof document !== "undefined") init();
+</script>
+</body>
+</html>
